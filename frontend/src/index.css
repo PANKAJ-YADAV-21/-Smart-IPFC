@@ -1,0 +1,286 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+:root {
+  font-family: 'Outfit', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: dark;
+  color: #f1f5f9;
+  background-color: #000000;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html, body, #root {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #000000 !important;
+  background: #000000 !important;
+  overflow-x: hidden;
+  width: 100%;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hide background animated gradient orbs for a pure black theme */
+.bg-orbs {
+  display: none !important;
+}
+
+@layer base {
+  body {
+    @apply text-slate-200 antialiased font-sans;
+  }
+}
+
+.glass {
+  background: #000000 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(22, 163, 74, 0.25) !important;
+  box-shadow: none !important;
+}
+
+.glass-card {
+  background: #000000 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(22, 163, 74, 0.25) !important;
+  box-shadow: none !important;
+
+  @apply rounded-2xl p-6 transition-all duration-300 relative overflow-hidden;
+}
+
+.glass-card::before {
+  display: none !important;
+}
+
+.glass-card:hover {
+  border-color: rgba(22, 163, 74, 0.5) !important;
+  box-shadow: 0 0 15px rgba(22, 163, 74, 0.15) !important;
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  @apply bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95;
+  box-shadow: 0 0 15px rgba(22, 163, 74, 0.4) !important;
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 25px rgba(22, 163, 74, 0.6) !important;
+}
+
+.input-field {
+  @apply w-full bg-black border border-emerald-900 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500/50 outline-none transition-all duration-300 text-slate-100 placeholder:text-slate-600;
+  background-color: #000000 !important;
+}
+
+/* Enforce left padding for inputs with icons (prevents cascade collision with px-4) */
+.input-field.pl-10 {
+  padding-left: 2.5rem !important;
+}
+.input-field.pl-11 {
+  padding-left: 2.75rem !important;
+}
+.input-field.pl-12 {
+  padding-left: 3rem !important;
+}
+
+.input-field:focus {
+  box-shadow: 0 0 10px 0 rgba(34, 197, 94, 0.2);
+}
+
+/* ==========================================================================
+   AMOLED PITCH BLACK & GREEN THEME OVERRIDES
+   ========================================================================== */
+
+/* Page & Section Container Backgrounds */
+.min-h-screen.bg-\[\#0f172a\],
+.min-h-screen.flex.relative.overflow-hidden.bg-\[\#0f172a\] {
+  background-color: #000000 !important;
+  background: #000000 !important;
+}
+
+/* Header glass look override */
+header.backdrop-blur-md.bg-\[\#0f172a\]\/60 {
+  background-color: #000000 !important;
+  background: #000000 !important;
+  border-bottom: 1px solid rgba(22, 163, 74, 0.25) !important;
+}
+
+/* Sidebar override */
+aside.glass {
+  background: #000000 !important;
+  border: 1px solid rgba(22, 163, 74, 0.3) !important;
+}
+
+/* Keep primary buttons text white */
+.btn-primary.text-white,
+.btn-primary span,
+.btn-primary,
+.btn-primary * {
+  color: #ffffff !important;
+}
+
+/* Sidebar navigation links hover & active styles */
+button.text-slate-400:hover,
+button.hover\:text-white:hover {
+  color: #ffffff !important;
+  background-color: rgba(22, 163, 74, 0.15) !important;
+}
+
+button.bg-primary-500\/10 {
+  background-color: rgba(22, 163, 74, 0.2) !important;
+  border-color: rgba(22, 163, 74, 0.4) !important;
+}
+
+/* Badge colors */
+.bg-primary-500\/10 {
+  background-color: rgba(22, 163, 74, 0.2) !important;
+}
+
+.text-primary-400 {
+  color: #4ade80 !important; /* Brighter green for AMOLED contrast */
+}
+
+/* Table boundaries */
+tr.border-b,
+.border-white\/5,
+.border-white\/10 {
+  border-color: rgba(22, 163, 74, 0.2) !important;
+}
+
+.divide-white\/5 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(22, 163, 74, 0.2) !important;
+}
+
+/* Input dropdown choices and specific select element options */
+option.bg-slate-900 {
+  background-color: #000000 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Chat boxes & messages overrides */
+.bg-slate-800 {
+  background-color: #000000 !important;
+  color: #f1f5f9 !important;
+  border-color: rgba(22, 163, 74, 0.25) !important;
+}
+
+/* Chat bubble styling for the user messages */
+.bg-gradient-to-br.from-primary-500.to-primary-600 {
+  background-image: linear-gradient(135deg, #16a34a, #15803d) !important;
+}
+
+.bg-gradient-to-br.from-primary-500.to-primary-600 p {
+  color: #ffffff !important;
+}
+
+.bg-gradient-to-br.from-primary-500.to-primary-600 .text-white {
+  color: #ffffff !important;
+}
+
+.bg-slate-900\/60 {
+  background-color: #000000 !important;
+}
+
+.bg-slate-950\/80 {
+  background-color: #000000 !important;
+}
+
+.bg-slate-900, .bg-slate-950 {
+  background-color: #000000 !important;
+}
+
+/* Modals overlays & alerts colors */
+.bg-black\/50,
+.bg-slate-900\/50,
+.bg-\[\#000000\]\/50 {
+  background-color: rgba(0, 0, 0, 0.75) !important;
+  backdrop-filter: blur(8px);
+}
+
+.glass-card.max-w-md {
+  background-color: #000000 !important;
+  border: 1px solid rgba(22, 163, 74, 0.3) !important;
+}
+
+/* Log out and critical action links */
+.text-red-400 {
+  color: #f87171 !important;
+}
+.text-red-400:hover {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+}
+
+/* Target and enforce pure AMOLED black backgrounds on any arbitrary slate or slate-900 or dark elements */
+[class*="bg-white"],
+[class*="bg-[#0f172a]"],
+[class*="bg-slate-9"],
+[class*="bg-slate-8"],
+[class*="bg-slate-950"] {
+  background-color: #000000 !important;
+  background: #000000 !important;
+}
+
+/* Prevent text inputs and selectors from getting incorrect color formatting */
+.input-field, input, select, textarea {
+  background-color: #000000 !important;
+  color: #f1f5f9 !important;
+  border-color: rgba(22, 163, 74, 0.35) !important;
+}
+
+/* Make sure glass elements retain solid black background */
+.glass, .glass-card, [class*="glass"] {
+  background-color: #000000 !important;
+  background: #000000 !important;
+}
+
+/* Fix header gradients on pure black background */
+.bg-gradient-to-r.from-white.to-slate-400 {
+  background-image: linear-gradient(to right, #4ade80, #ffffff) !important;
+  color: transparent !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+}
+
+/* Credit Card Flip Animation Styles */
+.card-perspective {
+  perspective: 1000px;
+}
+
+.card-inner {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  text-align: center;
+  transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transform-style: preserve-3d;
+}
+
+.card-inner.flipped {
+  transform: rotateY(180deg);
+}
+
+.card-front, .card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+.card-back {
+  transform: rotateY(180deg);
+}
