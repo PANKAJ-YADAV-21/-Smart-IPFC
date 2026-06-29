@@ -285,6 +285,149 @@ const Dashboard = () => {
     }
   };
 
+  // Download Payment Receipt PDF
+  const handleDownloadReceipt = (pay) => {
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    // 1. Draw border
+    doc.setDrawColor(16, 185, 129); // Emerald border
+    doc.setLineWidth(1);
+    doc.rect(10, 10, 190, 277);
+
+    // 2. Header
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(15, 23, 42);
+    doc.text("GOVERNMENT OF INDIA", 105, 30, { align: "center" });
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(71, 85, 105);
+    doc.text("INTELLECTUAL PROPERTY FACILITATION CENTRE (IPFC)", 105, 36, { align: "center" });
+
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.line(20, 42, 190, 42);
+
+    // 3. Receipt Title
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(16, 185, 129);
+    doc.text("OFFICIAL PAYMENT RECEIPT", 105, 52, { align: "center" });
+
+    // 4. Information Grid / Details Card
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(20, 60, 170, 75, 'FD');
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(71, 85, 105);
+
+    doc.text("Transaction ID:", 25, 70);
+    doc.text("Payment Date:", 25, 80);
+    doc.text("Payer Name:", 25, 90);
+    doc.text("Payer Email:", 25, 100);
+    doc.text("Filing Reference:", 25, 110);
+    doc.text("Payment Method:", 25, 120);
+    doc.text("Payment Status:", 25, 130);
+
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(15, 23, 42);
+
+    doc.text(pay.transaction_id || "N/A", 70, 70);
+    doc.text(new Date(pay.created_at).toLocaleString(), 70, 80);
+    doc.text(user?.name || "N/A", 70, 90);
+    doc.text(user?.email || "N/A", 70, 100);
+    doc.text(pay.ip_application ? `${pay.ip_application.title} (${pay.ip_application.application_number})` : "General Consultation", 70, 110);
+    doc.text((pay.payment_method || "card").replace("_", " ").toUpperCase(), 70, 120);
+
+    // Status badge
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(16, 185, 129); // Green
+    doc.text((pay.status || "completed").toUpperCase(), 70, 130);
+
+    // 5. Fee Breakdown Table
+    doc.setTextColor(15, 23, 42);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("Fee Details & Breakdown", 20, 150);
+
+    doc.setDrawColor(71, 85, 105);
+    doc.setLineWidth(0.5);
+    doc.line(20, 153, 190, 153);
+
+    // Table Header
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    doc.text("Description", 25, 160);
+    doc.text("Amount", 175, 160, { align: "right" });
+
+    doc.line(20, 163, 190, 163);
+
+    // Table Row 1
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(15, 23, 42);
+    const desc = pay.ip_application 
+      ? `Statutory Filing Fee for ${pay.ip_application.type.toUpperCase()}`
+      : "General IPFC Consultation / Processing Fee";
+    doc.text(desc, 25, 172);
+    doc.text(`INR ${parseFloat(pay.amount).toLocaleString('en-IN')}.00`, 175, 172, { align: "right" });
+
+    doc.setDrawColor(241, 245, 249);
+    doc.line(20, 178, 190, 178);
+
+    // Subtotal & Tax details
+    doc.setTextColor(71, 85, 105);
+    doc.text("Subtotal:", 130, 187);
+    doc.text(`INR ${parseFloat(pay.amount).toLocaleString('en-IN')}.00`, 175, 187, { align: "right" });
+
+    doc.text("CGST (0%):", 130, 195);
+    doc.text("INR 0.00", 175, 195, { align: "right" });
+
+    doc.text("SGST (0%):", 130, 203);
+    doc.text("INR 0.00", 175, 203, { align: "right" });
+
+    doc.setDrawColor(226, 232, 240);
+    doc.line(125, 207, 190, 207);
+
+    // Total
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text("Total Paid:", 130, 215);
+    doc.text(`INR ${parseFloat(pay.amount).toLocaleString('en-IN')}.00`, 175, 215, { align: "right" });
+
+    // 6. Signature section
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text("Generated securely by IPFCMS Portal", 25, 240);
+    doc.text("Authorized Signature (Govt. of India)", 150, 240, { align: "center" });
+
+    // Draw dummy seal/stamp
+    doc.setDrawColor(16, 185, 129);
+    doc.setLineWidth(0.5);
+    doc.circle(150, 255, 10);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6);
+    doc.setTextColor(16, 185, 129);
+    doc.text("PAID", 150, 254, { align: "center" });
+    doc.text("IPFC INDIA", 150, 258, { align: "center" });
+
+    // 7. Disclaimer
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text("This is an electronically generated transaction receipt. No physical signature is required.", 105, 275, { align: "center" });
+
+    // Save PDF
+    doc.save(`IPFC_Receipt_${pay.transaction_id}.pdf`);
+  };
+
   // Submit payment
   const handleMakePayment = async (e) => {
     e.preventDefault();
@@ -1143,6 +1286,7 @@ const Dashboard = () => {
                         <th className="pb-3 font-medium">Method</th>
                         <th className="pb-3 font-medium">Status</th>
                         <th className="pb-3 font-medium">Date</th>
+                        <th className="pb-3 font-medium text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="text-slate-300 divide-y divide-white/5">
@@ -1157,7 +1301,7 @@ const Dashboard = () => {
                           <tr key={pay.id} className="hover:bg-white/[0.01]">
                             <td className="py-4 font-mono text-sm font-medium text-slate-300">{pay.transaction_id}</td>
                             <td className="py-4 font-bold text-white">{pay.ip_application ? pay.ip_application.title : 'General Consultation'}</td>
-                            <td className="py-4 text-green-400 font-bold">₹ {pay.amount}</td>
+                            <td className="py-4 text-green-400 font-bold">₹ {parseFloat(pay.amount).toLocaleString('en-IN')}</td>
                             <td className="py-4 text-slate-400 text-sm font-medium uppercase">{(pay.payment_method || 'card').replace('_', ' ')}</td>
                             <td className="py-4">
                               <span className="px-2.5 py-1 rounded-lg text-xs font-bold uppercase bg-green-500/10 text-green-400 border border-green-500/20">
@@ -1165,6 +1309,14 @@ const Dashboard = () => {
                               </span>
                             </td>
                             <td className="py-4 text-sm text-slate-500">{new Date(pay.created_at).toLocaleDateString()}</td>
+                            <td className="py-4 text-right">
+                              <button
+                                onClick={() => handleDownloadReceipt(pay)}
+                                className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white text-xs font-bold py-1.5 px-3 rounded-lg inline-flex items-center gap-1.5 transition-all cursor-pointer"
+                              >
+                                <Download className="w-3.5 h-3.5" /> Receipt
+                              </button>
+                            </td>
                           </tr>
                         ))
                       )}
