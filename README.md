@@ -72,9 +72,11 @@ The platform improves operational efficiency, reduces manual paperwork, enhances
 - Auto-updated transaction receipts and application payment status updates
 
 ## 💬 Communication & Notifications
-- In-app messaging system
-- Notifications and alerts
-- Real-time application updates
+- Thread-based support chat system for interaction between Clients, Staff, and Experts
+- Interactive file attachments support (.pdf, .jpg, .png, .doc, .docx up to 10MB) in chat queries
+- Secure file downloader that authorizes downloads exclusively for chat participants
+- Unread status tracking and badge counts per conversation
+- Real-time in-app notification system and email-like alerts
 
 ## 📊 Admin Dashboard
 - User and role management
@@ -307,7 +309,7 @@ http://localhost:5173
 
 # 📈 Future Enhancements
 
-- Real-Time Chat using WebSockets
+- Real-Time WebSocket integration for instant messaging
 - SMS & Email Notifications
 - Cloud File Storage
 - Multi-language Support
