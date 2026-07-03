@@ -44,6 +44,9 @@ Route::middleware('auth:api')->group(function () {
     Route::patch('appointments/{id}/status', [AppointmentController::class, 'updateStatus']);
 
     // Chat Messages
+    Route::get('chat/threads', [ChatMessageController::class, 'threads']);
+    Route::post('chat/read-all', [ChatMessageController::class, 'markAllAsRead']);
+    Route::get('chat/attachments/{id}', [ChatMessageController::class, 'downloadAttachment']);
     Route::apiResource('chat', ChatMessageController::class)->only(['index', 'store']);
 
     // Notifications
