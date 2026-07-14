@@ -25,11 +25,18 @@ class AdminController extends Controller
             ->groupBy('type')
             ->get();
 
-        $totalRevenue = Payment::where('status', 'successful')->sum('amount');
+        $totalRevenue = Payment::where('status', 'completed')
+            ->orWhere('status', 'successful')
+            ->sum('amount');
 
-        // Monthly trend (last 6 months)
+        // SQLite & MySQL compatible monthly trend (last 6 months)
+        $isSqlite = DB::connection()->getDriverName() === 'sqlite';
+        $monthFormat = $isSqlite 
+            ? "strftime('%Y-%m', created_at)" 
+            : "DATE_FORMAT(created_at, '%Y-%m')";
+
         $monthlyTrend = IpApplication::select(
-            DB::raw('DATE_FORMAT(created_at, "%Y-%m") as month'),
+            DB::raw("{$monthFormat} as month"),
             DB::raw('count(*) as total')
         )
         ->groupBy('month')
@@ -37,12 +44,75 @@ class AdminController extends Controller
         ->limit(6)
         ->get();
 
+        // Monthly revenue trends
+        $monthlyRevenue = Payment::select(
+            DB::raw("{$monthFormat} as month"),
+            DB::raw('sum(amount) as total')
+        )
+        ->whereIn('status', ['completed', 'successful'])
+        ->groupBy('month')
+        ->orderBy('month', 'desc')
+        ->limit(6)
+        ->get();
+
+        // Revenue breakdown by IP type
+        $revenueByType = Payment::join('ip_applications', 'payments.ip_application_id', '=', 'ip_applications.id')
+            ->select('ip_applications.type', DB::raw('sum(payments.amount) as total'))
+            ->whereIn('payments.status', ['completed', 'successful'])
+            ->groupBy('ip_applications.type')
+            ->get();
+
+        // Expert workloads
+        $appointmentStatusCounts = DB::table('appointments')
+            ->select('status', DB::raw('count(*) as total'))
+            ->groupBy('status')
+            ->get();
+
+        $expertWorkloads = DB::table('appointments')
+            ->join('users', 'appointments.expert_id', '=', 'users.id')
+            ->select('users.name', DB::raw('count(*) as total'))
+            ->whereIn('appointments.status', ['pending', 'approved', 'scheduled'])
+            ->groupBy('users.name')
+            ->get();
+
+        // Average processing time in days (average duration from submitted to Approved)
+        $approvalTimes = [];
+        $completedApplications = IpApplication::whereIn('status', ['Approved by Staff', 'Approved', 'granted', 'submitted'])->get();
+        foreach ($completedApplications as $app) {
+            $history = DB::table('workflow_histories')
+                ->where('ip_application_id', $app->id)
+                ->orderBy('created_at', 'asc')
+                ->get();
+            
+            $submittedTime = null;
+            $approvedTime = null;
+            foreach ($history as $h) {
+                if ($h->to_status === 'submitted') {
+                    $submittedTime = strtotime($h->created_at);
+                }
+                if (in_array($h->to_status, ['Approved by Staff', 'Approved', 'granted'])) {
+                    $approvedTime = strtotime($h->created_at);
+                }
+            }
+            if ($submittedTime && $approvedTime) {
+                $approvalTimes[] = ($approvedTime - $submittedTime) / 86400; // in days
+            }
+        }
+        $avgProcessingDays = count($approvalTimes) > 0 
+            ? round(array_sum($approvalTimes) / count($approvalTimes), 1) 
+            : 0;
+
         return response()->json([
             'total_applications' => $totalApps,
             'status_counts' => $statusCounts,
             'type_counts' => $typeCounts,
             'total_revenue' => $totalRevenue,
-            'monthly_trend' => $monthlyTrend
+            'monthly_trend' => $monthlyTrend,
+            'monthly_revenue' => $monthlyRevenue,
+            'revenue_by_type' => $revenueByType,
+            'appointment_status_counts' => $appointmentStatusCounts,
+            'expert_workloads' => $expertWorkloads,
+            'avg_processing_days' => $avgProcessingDays
         ]);
     }
 
