@@ -17,7 +17,8 @@ import {
   ChevronRight,
   ClipboardList,
   Calendar,
-  LogOut
+  LogOut,
+  Paperclip
 } from 'lucide-react';
 
 const StaffDashboard = () => {
@@ -47,18 +48,29 @@ const StaffDashboard = () => {
   const [newMessage, setNewMessage] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
+  const [chatFile, setChatFile] = useState(null);
 
   useEffect(() => {
     fetchSubmittedApplications();
   }, []);
 
   useEffect(() => {
+    let interval;
     if (activeTab === 'appointments') {
       fetchAppointments();
     } else if (activeTab === 'messages') {
       fetchChatMessages();
+      // Mark read when entering tab or switching clients
+      axios.post('/chat/read-all').catch(err => console.error(err));
+
+      interval = setInterval(() => {
+        axios.get('/chat').then(res => {
+          setChatMessages(Array.isArray(res.data) ? res.data : []);
+        }).catch(err => console.error("Polling messages failed", err));
+      }, 5000);
     }
-  }, [activeTab]);
+    return () => clearInterval(interval);
+  }, [activeTab, selectedClient]);
 
   const fetchChatMessages = async () => {
     setChatLoading(true);
@@ -72,18 +84,49 @@ const StaffDashboard = () => {
     }
   };
 
+  // Download Chat Attachment File
+  const handleDownloadChatAttachment = (id, filename) => {
+    axios({
+      url: `/chat/attachments/${id}`,
+      method: 'GET',
+      responseType: 'blob',
+    }).then((response) => {
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+    }).catch(() => {
+      alert('Could not download attachment.');
+    });
+  };
+
   const handleSendReply = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedClient) return;
+    if ((!newMessage.trim() && !chatFile) || !selectedClient) return;
 
     setSendingMsg(true);
     try {
-      const res = await axios.post('/chat', {
-        message: newMessage,
-        receiver_id: selectedClient.id
-      });
+      let data;
+      let headers = {};
+      if (chatFile) {
+        data = new FormData();
+        if (newMessage.trim()) data.append('message', newMessage);
+        data.append('file', chatFile);
+        data.append('receiver_id', selectedClient.id);
+        headers['Content-Type'] = 'multipart/form-data';
+      } else {
+        data = {
+          message: newMessage,
+          receiver_id: selectedClient.id
+        };
+      }
+
+      const res = await axios.post('/chat', data, { headers });
       setChatMessages(prev => [...prev, res.data]);
       setNewMessage('');
+      setChatFile(null);
     } catch (err) {
       console.error("Failed to send reply", err);
       alert('Failed to send reply. Please try again.');
@@ -100,21 +143,25 @@ const StaffDashboard = () => {
       const receiver = msg.receiver;
 
       if (sender && sender.role === 'client') {
+        const unreadCount = chatMessages.filter(m => m.sender_id === sender.id && m.receiver_id === user.id && !m.is_read).length;
         clients[sender.id] = {
           id: sender.id,
           name: sender.name,
           email: sender.email,
           lastMessage: msg.message,
-          lastTime: msg.created_at
+          lastTime: msg.created_at,
+          unreadCount: unreadCount
         };
       }
       if (receiver && receiver.role === 'client') {
+        const unreadCount = chatMessages.filter(m => m.sender_id === receiver.id && m.receiver_id === user.id && !m.is_read).length;
         clients[receiver.id] = {
           id: receiver.id,
           name: receiver.name,
           email: receiver.email,
           lastMessage: msg.message,
-          lastTime: msg.created_at
+          lastTime: msg.created_at,
+          unreadCount: unreadCount
         };
       }
     });
@@ -657,7 +704,14 @@ const StaffDashboard = () => {
                             {client.name.substring(0, 2).toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="text-xs font-bold text-white truncate">{client.name}</h4>
+                            <div className="flex justify-between items-center">
+                              <h4 className="text-xs font-bold text-white truncate">{client.name}</h4>
+                              {client.unreadCount > 0 && (
+                                <span className="bg-red-600 text-white font-bold text-[9px] px-1.5 py-0.5 rounded-full animate-pulse shrink-0">
+                                  {client.unreadCount}
+                                </span>
+                              )}
+                            </div>
                             <p className="text-[10px] text-slate-500 truncate">{client.email}</p>
                             <p className="text-[10px] text-slate-400 truncate mt-1 italic">"{client.lastMessage}"</p>
                           </div>
@@ -698,6 +752,18 @@ const StaffDashboard = () => {
                                 : 'bg-primary-600 text-white rounded-tr-none shadow-[0_4px_12px_rgba(2,132,199,0.2)]'
                             }`}>
                               {msg.message}
+                              {msg.attachment_path && (
+                                <div className="space-y-1 mt-2">
+                                  <ChatAttachmentPreview msg={msg} />
+                                  <button 
+                                    type="button"
+                                    onClick={() => handleDownloadChatAttachment(msg.id, msg.attachment_path.split('/').pop())}
+                                    className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer bg-white/5 hover:bg-white/10 px-2 py-1 rounded w-fit"
+                                  >
+                                    <Download className="w-3 h-3" /> Download
+                                  </button>
+                                </div>
+                              )}
                             </div>
                             <span className="text-[9px] text-slate-500 mt-1 font-medium">
                               {isFromClient ? msg.sender?.name : `${msg.sender?.name || 'Support'} (Staff)`} • {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
@@ -707,8 +773,29 @@ const StaffDashboard = () => {
                       })}
                     </div>
 
+                    {/* File Attachment Chip */}
+                    {chatFile && (
+                      <div className="px-4 py-2 border-t border-white/5 flex items-center justify-between text-xs bg-slate-900/40">
+                        <div className="flex items-center gap-2 text-slate-300">
+                          <FileText className="w-4 h-4 text-primary-400" />
+                          <span className="font-medium truncate max-w-xs">{chatFile.name} ({(chatFile.size / 1024).toFixed(1)} KB)</span>
+                        </div>
+                        <button type="button" onClick={() => setChatFile(null)} className="p-1 hover:bg-white/10 rounded-full text-slate-400 hover:text-white">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
                     {/* Text field reply form */}
-                    <form onSubmit={handleSendReply} className="mt-auto pt-4 border-t border-white/5 flex gap-3">
+                    <form onSubmit={handleSendReply} className="mt-auto pt-4 border-t border-white/5 flex gap-3 items-center">
+                      <label className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl border border-white/5 cursor-pointer transition-colors shrink-0">
+                        <Paperclip className="w-4 h-4" />
+                        <input 
+                          type="file" 
+                          onChange={(e) => setChatFile(e.target.files[0])} 
+                          className="hidden" 
+                        />
+                      </label>
                       <input 
                         type="text"
                         value={newMessage}
@@ -719,7 +806,7 @@ const StaffDashboard = () => {
                       />
                       <button 
                         type="submit"
-                        disabled={sendingMsg || !newMessage.trim()}
+                        disabled={sendingMsg || (!newMessage.trim() && !chatFile)}
                         className="btn-primary py-2 px-5 text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                       >
                         {sendingMsg ? (
@@ -745,6 +832,45 @@ const StaffDashboard = () => {
 
         </div>
       </main>
+    </div>
+  );
+};
+
+const ChatAttachmentPreview = ({ msg }) => {
+  const [imgUrl, setImgUrl] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const isImage = msg.attachment_path.match(/\.(jpeg|jpg|gif|png)$/i);
+
+  useEffect(() => {
+    if (isImage) {
+      setLoading(true);
+      axios({
+        url: `/chat/attachments/${msg.id}`,
+        method: 'GET',
+        responseType: 'blob'
+      }).then(response => {
+        const url = window.URL.createObjectURL(response.data);
+        setImgUrl(url);
+      }).catch(err => {
+        console.error("Failed to load attachment image", err);
+      }).finally(() => {
+        setLoading(false);
+      });
+    }
+  }, [msg.id, isImage]);
+
+  if (isImage) {
+    if (loading) return <div className="text-[10px] text-slate-400">Loading preview...</div>;
+    if (imgUrl) return <img src={imgUrl} alt="Attachment" className="max-w-[200px] max-h-[150px] rounded-lg mt-2 cursor-pointer border border-white/10 hover:opacity-90" onClick={() => window.open(imgUrl)} />;
+    return <div className="text-[10px] text-red-400">Preview failed</div>;
+  }
+
+  return (
+    <div className="flex items-center gap-2 mt-2 p-2 bg-slate-900/60 border border-white/5 rounded-lg max-w-[250px]">
+      <FileText className="w-4 h-4 text-primary-400" />
+      <span className="text-[10px] font-bold text-slate-300 truncate flex-1 font-mono">
+        {msg.attachment_path.split('/').pop()}
+      </span>
     </div>
   );
 };

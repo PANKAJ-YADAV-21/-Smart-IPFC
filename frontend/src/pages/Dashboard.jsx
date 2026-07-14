@@ -27,7 +27,8 @@ import {
   DollarSign,
   ArrowLeft,
   Loader2,
-  Award
+  Award,
+  Paperclip
 } from 'lucide-react';
 import CheckoutModal from '../components/CheckoutModal';
 
@@ -95,6 +96,11 @@ const Dashboard = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
+  const [chatFile, setChatFile] = useState(null);
+  const [isWidgetOpen, setIsWidgetOpen] = useState(false);
+  const [widgetMessage, setWidgetMessage] = useState('');
+  const [widgetFile, setWidgetFile] = useState(null);
+  const [widgetSending, setWidgetSending] = useState(false);
 
   // Notifications state
   const [notifications, setNotifications] = useState([]);
@@ -448,24 +454,99 @@ const Dashboard = () => {
     }
   };
 
+  // Download Chat Attachment File
+  const handleDownloadChatAttachment = (id, filename) => {
+    axios({
+      url: `/chat/attachments/${id}`,
+      method: 'GET',
+      responseType: 'blob',
+    }).then((response) => {
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+    }).catch(() => {
+      alert('Could not download attachment.');
+    });
+  };
+
   // Submit chat message
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() && !chatFile) return;
     setSendingMsg(true);
     try {
-      const res = await axios.post('/chat', {
-        message: newMessage,
-        ip_application_id: selectedApp ? selectedApp.id : null
-      });
+      let data;
+      let headers = {};
+      if (chatFile) {
+        data = new FormData();
+        if (newMessage.trim()) data.append('message', newMessage);
+        data.append('file', chatFile);
+        if (selectedApp) data.append('ip_application_id', selectedApp.id);
+        headers['Content-Type'] = 'multipart/form-data';
+      } else {
+        data = {
+          message: newMessage,
+          ip_application_id: selectedApp ? selectedApp.id : null
+        };
+      }
+      const res = await axios.post('/chat', data, { headers });
       setChatMessages([...chatMessages, res.data]);
       setNewMessage('');
+      setChatFile(null);
     } catch (err) {
       console.error("Failed to send message", err);
     } finally {
       setSendingMsg(false);
     }
   };
+
+  // Submit chat message from floating widget
+  const handleSendWidgetMessage = async (e) => {
+    e.preventDefault();
+    if (!widgetMessage.trim() && !widgetFile) return;
+    setWidgetSending(true);
+    try {
+      let data;
+      let headers = {};
+      if (widgetFile) {
+        data = new FormData();
+        if (widgetMessage.trim()) data.append('message', widgetMessage);
+        data.append('file', widgetFile);
+        headers['Content-Type'] = 'multipart/form-data';
+      } else {
+        data = {
+          message: widgetMessage
+        };
+      }
+      const res = await axios.post('/chat', data, { headers });
+      setChatMessages([...chatMessages, res.data]);
+      setWidgetMessage('');
+      setWidgetFile(null);
+    } catch (err) {
+      console.error("Failed to send widget message", err);
+    } finally {
+      setWidgetSending(false);
+    }
+  };
+
+  // Light-weight polling for new chat messages and marking read
+  useEffect(() => {
+    let interval;
+    if (activeTab === 'messages' || isWidgetOpen) {
+      // Mark read when entering messages tab or opening widget
+      axios.post('/chat/read-all').catch(err => console.error(err));
+      
+      interval = setInterval(() => {
+        axios.get('/chat').then(res => {
+          setChatMessages(res.data);
+        }).catch(err => console.error("Polling chat failed", err));
+      }, 5000);
+    }
+    return () => clearInterval(interval);
+  }, [activeTab, isWidgetOpen]);
 
   // Filter application list
   const filteredApps = applications.filter(app => {
@@ -495,6 +576,7 @@ const Dashboard = () => {
     { key: 'profile', icon: UserIcon, label: 'My Profile' },
   ];
 
+  const unreadChatCount = chatMessages.filter(msg => msg.receiver_id === user.id && !msg.is_read).length;
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   return (
@@ -521,6 +603,11 @@ const Dashboard = () => {
                 {item.key === 'notifications' && unreadCount > 0 && (
                   <span className="ml-auto bg-red-600 text-white font-bold text-[10px] w-5 h-5 rounded-full flex items-center justify-center animate-pulse">
                     {unreadCount}
+                  </span>
+                )}
+                {item.key === 'messages' && unreadChatCount > 0 && (
+                  <span className="ml-auto bg-primary-600 text-white font-bold text-[10px] w-5 h-5 rounded-full flex items-center justify-center animate-pulse">
+                    {unreadChatCount}
                   </span>
                 )}
               </button>
@@ -1240,6 +1327,18 @@ const Dashboard = () => {
                             }`}>
                             <p className="font-bold text-xs mb-1 opacity-70">{msg.sender ? msg.sender.name : 'User'}</p>
                             <p>{msg.message}</p>
+                            {msg.attachment_path && (
+                              <div className="space-y-1 mt-2">
+                                <ChatAttachmentPreview msg={msg} />
+                                <button 
+                                  type="button"
+                                  onClick={() => handleDownloadChatAttachment(msg.id, msg.attachment_path.split('/').pop())}
+                                  className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer bg-white/5 hover:bg-white/10 px-2 py-1 rounded w-fit"
+                                >
+                                  <Download className="w-3 h-3" /> Download
+                                </button>
+                              </div>
+                            )}
                             <p className="text-[9px] text-right mt-1 opacity-50">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                           </div>
                         </div>
@@ -1248,17 +1347,38 @@ const Dashboard = () => {
                   )}
                 </div>
 
+                {/* File Attachment Chip */}
+                {chatFile && (
+                  <div className="px-4 py-2 border-t border-white/5 flex items-center justify-between text-xs bg-slate-900/40">
+                    <div className="flex items-center gap-2 text-slate-300">
+                      <FileText className="w-4 h-4 text-primary-400" />
+                      <span className="font-medium truncate max-w-xs">{chatFile.name} ({(chatFile.size / 1024).toFixed(1)} KB)</span>
+                    </div>
+                    <button type="button" onClick={() => setChatFile(null)} className="p-1 hover:bg-white/10 rounded-full text-slate-400 hover:text-white">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
                 {/* Send Footer */}
-                <form onSubmit={handleSendMessage} className="p-4 border-t border-white/5 flex gap-3">
+                <form onSubmit={handleSendMessage} className="p-4 border-t border-white/5 flex gap-3 items-center">
+                  <label className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl border border-white/5 cursor-pointer transition-colors shrink-0">
+                    <Paperclip className="w-4 h-4" />
+                    <input 
+                      type="file" 
+                      onChange={(e) => setChatFile(e.target.files[0])} 
+                      className="hidden" 
+                    />
+                  </label>
                   <input
                     type="text"
                     placeholder="Type your message here..."
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    className="input-field flex-1"
+                    className="input-field flex-1 text-sm py-2.5"
                   />
-                  <button type="submit" disabled={sendingMsg} className="btn-primary px-5 flex items-center justify-center gap-2">
-                    {sendingMsg ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                  <button type="submit" disabled={sendingMsg} className="btn-primary py-2.5 px-6 flex items-center justify-center gap-2">
+                    {sendingMsg ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-4 h-4" />}
                   </button>
                 </form>
               </div>
@@ -1506,6 +1626,165 @@ const Dashboard = () => {
           onSuccess={handlePaymentSuccess}
         />
       )}
+
+      {/* FLOATING CHAT WIDGET */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+        {isWidgetOpen && (
+          <div className="w-[360px] h-[480px] mb-4 glass rounded-3xl border border-white/15 shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-[#0f172a]/95 backdrop-blur-md">
+            {/* Header */}
+            <div className="p-4 bg-gradient-to-r from-primary-600 to-primary-700 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">
+                  IP
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold">IPFC Support Hub</h4>
+                  <p className="text-[10px] text-slate-300">Typically replies in a few minutes</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setIsWidgetOpen(false)}
+                className="p-1.5 hover:bg-white/10 rounded-full text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Chat Body */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+              {chatMessages.length === 0 ? (
+                <div className="text-center text-slate-500 text-xs mt-10">
+                  Ask our IP experts any questions about your filings!
+                </div>
+              ) : (
+                chatMessages.map(msg => {
+                  const isMe = msg.sender_id === user.id;
+                  return (
+                    <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end ml-auto' : 'items-start mr-auto'} max-w-[85%]`}>
+                      <div className={`p-3 rounded-2xl text-xs leading-relaxed ${
+                        isMe 
+                          ? 'bg-primary-600 text-white rounded-tr-none' 
+                          : 'bg-slate-800 text-slate-100 rounded-tl-none border border-white/5'
+                      }`}>
+                        {msg.message}
+                        {msg.attachment_path && (
+                          <div className="space-y-1 mt-2">
+                            <ChatAttachmentPreview msg={msg} />
+                            <button 
+                              type="button"
+                              onClick={() => handleDownloadChatAttachment(msg.id, msg.attachment_path.split('/').pop())}
+                              className="text-[9px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer bg-white/5 hover:bg-white/10 px-2 py-1 rounded w-fit"
+                            >
+                              <Download className="w-3 h-3" /> Download
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-[8px] text-slate-500 mt-1">
+                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* File Attachment Chip */}
+            {widgetFile && (
+              <div className="px-4 py-2 border-t border-white/5 flex items-center justify-between text-[11px] bg-slate-900/40">
+                <div className="flex items-center gap-1.5 text-slate-300 truncate">
+                  <FileText className="w-3.5 h-3.5 text-primary-400" />
+                  <span className="font-medium truncate max-w-[200px]">{widgetFile.name}</span>
+                </div>
+                <button type="button" onClick={() => setWidgetFile(null)} className="p-0.5 hover:bg-white/10 rounded-full text-slate-400 hover:text-white">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Chat Input Footer */}
+            <form onSubmit={handleSendWidgetMessage} className="p-3 border-t border-white/5 flex gap-2 items-center bg-slate-900/20">
+              <label className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg border border-white/5 cursor-pointer transition-colors shrink-0">
+                <Paperclip className="w-3.5 h-3.5" />
+                <input 
+                  type="file" 
+                  onChange={(e) => setWidgetFile(e.target.files[0])} 
+                  className="hidden" 
+                />
+              </label>
+              <input
+                type="text"
+                value={widgetMessage}
+                onChange={(e) => setWidgetMessage(e.target.value)}
+                placeholder="Type a message..."
+                className="input-field py-1.5 px-3 text-xs flex-1"
+                disabled={widgetSending}
+              />
+              <button 
+                type="submit" 
+                disabled={widgetSending || (!widgetMessage.trim() && !widgetFile)} 
+                className="btn-primary p-2 flex items-center justify-center rounded-lg"
+              >
+                {widgetSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* Floating Bubble Button */}
+        <button
+          onClick={() => setIsWidgetOpen(!isWidgetOpen)}
+          className="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-110 cursor-pointer relative"
+        >
+          {isWidgetOpen ? <X className="w-6 h-6" /> : <MessageSquare className="w-6 h-6 animate-pulse" />}
+          
+          {unreadChatCount > 0 && !isWidgetOpen && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center animate-bounce shadow-lg">
+              {unreadChatCount}
+            </span>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const ChatAttachmentPreview = ({ msg }) => {
+  const [imgUrl, setImgUrl] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const isImage = msg.attachment_path.match(/\.(jpeg|jpg|gif|png)$/i);
+
+  useEffect(() => {
+    if (isImage) {
+      setLoading(true);
+      axios({
+        url: `/chat/attachments/${msg.id}`,
+        method: 'GET',
+        responseType: 'blob'
+      }).then(response => {
+        const url = window.URL.createObjectURL(response.data);
+        setImgUrl(url);
+      }).catch(err => {
+        console.error("Failed to load attachment image", err);
+      }).finally(() => {
+        setLoading(false);
+      });
+    }
+  }, [msg.id, isImage]);
+
+  if (isImage) {
+    if (loading) return <div className="text-[10px] text-slate-400">Loading preview...</div>;
+    if (imgUrl) return <img src={imgUrl} alt="Attachment" className="max-w-[200px] max-h-[150px] rounded-lg mt-2 cursor-pointer border border-white/10 hover:opacity-90" onClick={() => window.open(imgUrl)} />;
+    return <div className="text-[10px] text-red-400">Preview failed</div>;
+  }
+
+  return (
+    <div className="flex items-center gap-2 mt-2 p-2 bg-slate-900/60 border border-white/5 rounded-lg max-w-[250px]">
+      <FileText className="w-4 h-4 text-primary-400" />
+      <span className="text-[10px] font-bold text-slate-300 truncate flex-1 font-mono">
+        {msg.attachment_path.split('/').pop()}
+      </span>
     </div>
   );
 };
