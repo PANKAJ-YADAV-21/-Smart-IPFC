@@ -9,7 +9,7 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(sessionStorage.getItem('token'));
 
   useEffect(() => {
-    axios.defaults.baseURL = 'http://localhost:8000/api';
+    axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
     if (token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       fetchUser();
