@@ -3,6 +3,11 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { jsPDF } from 'jspdf';
 import { 
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, 
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
+} from 'recharts';
+const COLORS = ['#3b82f6', '#eab308', '#10b981', '#a855f7'];
+import { 
   BarChart3, 
   Users, 
   FileCheck, 
@@ -28,7 +33,12 @@ const AdminDashboard = () => {
     total_revenue: 0,
     status_counts: [],
     type_counts: [],
-    monthly_trend: []
+    monthly_trend: [],
+    monthly_revenue: [],
+    revenue_by_type: [],
+    appointment_status_counts: [],
+    expert_workloads: [],
+    avg_processing_days: 0
   });
 
   // Users State
@@ -277,11 +287,12 @@ const AdminDashboard = () => {
           )}
 
           {/* Stats Analytics Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard icon={Users} label="Total Registered Users" value={usersList.length} color="blue" />
-            <StatCard icon={ClipboardCheck} label="Filing Queue Length" value={applications.length} color="yellow" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+            <StatCard icon={Users} label="Total Users" value={usersList.length} color="blue" />
+            <StatCard icon={ClipboardCheck} label="Queue Length" value={applications.length} color="yellow" />
             <StatCard icon={Award} label="Approved Filings" value={applications.filter(a => a.status === 'Approved').length} color="green" />
-            <StatCard icon={DollarSign} label="Statutory Revenue" value={`₹ ${analytics.total_revenue || '23,000'}`} color="red" />
+            <StatCard icon={DollarSign} label="Revenue" value={`₹ ${parseFloat(analytics.total_revenue || 0).toLocaleString('en-IN')}`} color="red" />
+            <StatCard icon={Clock} label="Approval Speed" value={`${analytics.avg_processing_days || 0} Days`} color="blue" />
           </div>
 
           {/* User management + charts grid */}
@@ -354,19 +365,110 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* Application Category analytics */}
+            {/* Application Category analytics & Revenue Split */}
+            <div className="space-y-6">
+              <div className="glass-card">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-primary-400" /> Filing Types Distribution
+                </h3>
+                <div className="space-y-4">
+                  <ProgressItem label="Patents Filed" count={applications.filter(a => a.type === 'patent').length} total={applications.length} color="blue" />
+                  <ProgressItem label="Trademarks Filed" count={applications.filter(a => a.type === 'trademark').length} total={applications.length} color="yellow" />
+                  <ProgressItem label="Copyrights Filed" count={applications.filter(a => a.type === 'copyright').length} total={applications.length} color="green" />
+                  <ProgressItem label="Industrial Designs Filed" count={applications.filter(a => a.type === 'design').length} total={applications.length} color="purple" />
+                </div>
+              </div>
+
+              {/* Revenue Split Chart */}
+              {analytics.revenue_by_type && analytics.revenue_by_type.length > 0 && (
+                <div className="glass-card">
+                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-primary-400" /> Revenue Split by IP Type
+                  </h3>
+                  <div className="h-[180px] flex items-center justify-center">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={analytics.revenue_by_type}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={70}
+                          paddingAngle={4}
+                          dataKey="total"
+                          nameKey="type"
+                        >
+                          {analytics.revenue_by_type.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => `₹${parseFloat(value).toLocaleString('en-IN')}`} contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex justify-around text-[10px] text-slate-400 pt-2 border-t border-white/5">
+                    {analytics.revenue_by_type.map((entry, index) => (
+                      <div key={entry.type} className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
+                        <span className="capitalize">{entry.type}: ₹{parseFloat(entry.total).toLocaleString('en-IN')}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+
+          {/* Visual Analytics Charts Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Chart 1: Monthly Trends */}
             <div className="glass-card">
               <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                <Activity className="w-5 h-5 text-primary-400" /> Filing Types Distribution
+                <BarChart3 className="w-5 h-5 text-primary-400" /> Monthly Submissions & Trend
               </h3>
-              <div className="space-y-4">
-                <ProgressItem label="Patents Filed" count={applications.filter(a => a.type === 'patent').length} total={applications.length} color="blue" />
-                <ProgressItem label="Trademarks Filed" count={applications.filter(a => a.type === 'trademark').length} total={applications.length} color="yellow" />
-                <ProgressItem label="Copyrights Filed" count={applications.filter(a => a.type === 'copyright').length} total={applications.length} color="green" />
-                <ProgressItem label="Industrial Designs Filed" count={applications.filter(a => a.type === 'design').length} total={applications.length} color="purple" />
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={[...(analytics.monthly_trend || [])].reverse()}>
+                    <defs>
+                      <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                    <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
+                    <Area type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorTotal)" name="Filings Count" />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             </div>
 
+            {/* Chart 2: Expert workloads */}
+            <div className="glass-card">
+              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                <Users className="w-5 h-5 text-primary-400" /> Expert Consultation Workloads
+              </h3>
+              <div className="h-[280px]">
+                {(!analytics.expert_workloads || analytics.expert_workloads.length === 0) ? (
+                  <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">
+                    No active expert consultation workload records.
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={analytics.expert_workloads}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                      <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} />
+                      <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
+                      <Bar dataKey="total" fill="#10b981" radius={[4, 4, 0, 0]} name="Active Bookings" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Active Audit Filings Queue */}
