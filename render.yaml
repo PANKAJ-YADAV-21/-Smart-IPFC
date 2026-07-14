@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: ipfcms-backend
+    env: docker
+    dockerfilePath: Dockerfile
+    dockerContext: .
+    rootDir: backend
+    plan: free
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        value: base64:c3VwZXJfc2VjdXJlX2tleV9mb3JfbGFyYXZlbF9pcGZjbXM=
+      - key: DB_CONNECTION
+        value: sqlite
+      - key: SESSION_DRIVER
+        value: file
+      - key: CACHE_STORE
+        value: file
+      - key: QUEUE_CONNECTION
+        value: sync
