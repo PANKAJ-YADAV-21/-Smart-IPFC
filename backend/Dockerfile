@@ -124,14 +124,20 @@ COPY --from=vendor /app/vendor ./vendor
 COPY . .
 
 # Set permissions
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html/storage \
-    && chmod -R 755 /var/www/html/bootstrap/cache
+RUN cp .env.example .env \
+    && touch database/database.sqlite \
+    && chown -R www-data:www-data /var/www/html \
+    && chmod -R 775 /var/www/html/storage \
+    && chmod -R 775 /var/www/html/bootstrap/cache \
+    && chmod -R 775 /var/www/html/database
 
-# Cache configuration for production
-RUN php artisan config:clear \
+# Cache configuration, key generation and database setup for production
+RUN php artisan key:generate --force \
+    && php artisan config:clear \
     && php artisan route:clear \
-    && php artisan view:clear
+    && php artisan view:clear \
+    && php artisan migrate --force \
+    && php artisan db:seed --force
 
 EXPOSE 80 9000
 
